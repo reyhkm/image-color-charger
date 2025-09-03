@@ -7,11 +7,15 @@ function App() {
   const [selectedColor, setSelectedColor] = useState<string>('#5E2DD8'); // A nice purple
   const [tolerance, setTolerance] = useState<number>(20);
   const [mode, setMode] = useState<'floodFill' | 'replaceAll'>('floodFill');
+  const [canUndo, setCanUndo] = useState<boolean>(false);
+  const [canRedo, setCanRedo] = useState<boolean>(false);
 
   const canvasEditorRef = useRef<CanvasEditorHandle>(null);
 
   const handleImageUpload = useCallback((src: string) => {
     setImageSrc(src);
+    setCanUndo(false);
+    setCanRedo(false);
   }, []);
 
   const handleDownload = useCallback(() => {
@@ -20,6 +24,19 @@ function App() {
 
   const handleReset = useCallback(() => {
     canvasEditorRef.current?.resetImage();
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    canvasEditorRef.current?.undo();
+  }, []);
+
+  const handleRedo = useCallback(() => {
+    canvasEditorRef.current?.redo();
+  }, []);
+
+  const handleHistoryChange = useCallback((undoPossible: boolean, redoPossible: boolean) => {
+    setCanUndo(undoPossible);
+    setCanRedo(redoPossible);
   }, []);
 
   return (
@@ -42,7 +59,11 @@ function App() {
           onModeChange={setMode}
           onDownload={handleDownload}
           onReset={handleReset}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
           isImageLoaded={!!imageSrc}
+          canUndo={canUndo}
+          canRedo={canRedo}
         />
       </aside>
 
@@ -55,6 +76,7 @@ function App() {
               selectedColor={selectedColor}
               tolerance={tolerance}
               mode={mode}
+              onHistoryChange={handleHistoryChange}
             />
           ) : (
             <div className="text-center text-gray-500">

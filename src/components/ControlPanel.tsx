@@ -10,7 +10,11 @@ interface ControlPanelProps {
   onModeChange: (mode: 'floodFill' | 'replaceAll') => void;
   onDownload: () => void;
   onReset: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
   isImageLoaded: boolean;
+  canUndo: boolean;
+  canRedo: boolean;
 }
 
 const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -23,7 +27,11 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   onModeChange,
   onDownload,
   onReset,
+  onUndo,
+  onRedo,
   isImageLoaded,
+  canUndo,
+  canRedo,
 }) => {
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -125,6 +133,24 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
       {/* Action Buttons */}
       {isImageLoaded && (
         <div className="mt-8 pt-6 border-t border-gray-700 space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={onUndo}
+              disabled={!canUndo}
+              className="w-full bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition duration-300 flex items-center justify-center gap-2"
+            >
+              <span>↩️</span>
+              <span>Undo</span>
+            </button>
+            <button
+              onClick={onRedo}
+              disabled={!canRedo}
+              className="w-full bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition duration-300 flex items-center justify-center gap-2"
+            >
+              <span>↪️</span>
+              <span>Redo</span>
+            </button>
+          </div>
           <button
             onClick={onDownload}
             className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300 flex items-center justify-center gap-2"

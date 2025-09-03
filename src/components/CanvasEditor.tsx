@@ -6,21 +6,36 @@ interface CanvasEditorProps {
   selectedColor: string;
   tolerance: number;
   mode: 'floodFill' | 'replaceAll';
+  onHistoryChange?: (canUndo: boolean, canRedo: boolean) => void;
 }
 
 export interface CanvasEditorHandle {
   downloadImage: () => void;
   resetImage: () => void;
+  undo: () => void;
+  redo: () => void;
 }
 
 const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(
-  ({ imageSrc, selectedColor, tolerance, mode }, ref) => {
+  ({ imageSrc, selectedColor, tolerance, mode, onHistoryChange }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
     const originalImageDataRef = useRef<ImageData | null>(null);
     const [imageLoaded, setImageLoaded] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+
+    const [history, setHistory] = useState<ImageData[]>([]);
+    const [historyIndex, setHistoryIndex] = useState<number>(-1);
+
+    // Notify parent component about history changes
+    useEffect(() => {
+      if (onHistoryChange) {
+        const canUndo = historyIndex > 0;
+        const canRedo = historyIndex < history.length - 1;
+        onHistoryChange(canUndo, canRedo);
+      }
+    }, [history, historyIndex, onHistoryChange]);
 
     const drawImageOnCanvas = useCallback((img: HTMLImageElement) => {
       const canvas = canvasRef.current;
@@ -34,13 +49,18 @@ const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(
       ctx.drawImage(img, 0, 0);
 
       try {
-        originalImageDataRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const initialImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        originalImageDataRef.current = initialImageData;
+        setHistory([initialImageData]);
+        setHistoryIndex(0);
         setImageLoaded(true);
         setError(null);
       } catch (e) {
         console.error("CORS error getting image data:", e);
         setError("Cannot process this image due to security restrictions (CORS). Try downloading the image and uploading it from your device.");
         originalImageDataRef.current = null;
+        setHistory([]);
+        setHistoryIndex(-1);
         setImageLoaded(false);
       } finally {
         setIsLoading(false);
@@ -51,6 +71,8 @@ const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(
       setIsLoading(true);
       setImageLoaded(false);
       setError(null);
+      setHistory([]);
+      setHistoryIndex(-1);
       const img = new Image();
       img.crossOrigin = "Anonymous";
       img.src = imageSrc;
@@ -126,12 +148,21 @@ const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(
       const targetColor = getPixelColor(ctx.getImageData(x, y, 1, 1), 0, 0);
       const replacementColorRgba = hexToRgba(selectedColor);
 
+      if (colorsMatch(targetColor, replacementColorRgba, 0)) return;
+
       if (mode === 'floodFill') {
         floodFill(x, y, replacementColorRgba);
       } else {
         replaceAllColors(targetColor, replacementColorRgba);
       }
-    }, [selectedColor, floodFill, replaceAllColors, imageLoaded, mode]);
+
+      // After modification, update history
+      const newImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const newHistory = history.slice(0, historyIndex + 1);
+      newHistory.push(newImageData);
+      setHistory(newHistory);
+      setHistoryIndex(newHistory.length - 1);
+    }, [selectedColor, floodFill, replaceAllColors, imageLoaded, mode, history, historyIndex]);
 
     const downloadImage = useCallback(() => {
       const canvas = canvasRef.current;
@@ -147,12 +178,32 @@ const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(
       const ctx = ctxRef.current;
       if (ctx && originalImageDataRef.current) {
         ctx.putImageData(originalImageDataRef.current, 0, 0);
+        setHistory([originalImageDataRef.current]);
+        setHistoryIndex(0);
       }
     }, []);
+
+    const undo = useCallback(() => {
+      if (historyIndex > 0) {
+        const newIndex = historyIndex - 1;
+        setHistoryIndex(newIndex);
+        ctxRef.current?.putImageData(history[newIndex], 0, 0);
+      }
+    }, [history, historyIndex]);
+
+    const redo = useCallback(() => {
+      if (historyIndex < history.length - 1) {
+        const newIndex = historyIndex + 1;
+        setHistoryIndex(newIndex);
+        ctxRef.current?.putImageData(history[newIndex], 0, 0);
+      }
+    }, [history, historyIndex]);
 
     useImperativeHandle(ref, () => ({
       downloadImage,
       resetImage,
+      undo,
+      redo,
     }));
 
     return (
